@@ -1,0 +1,38 @@
+{
+    "name": "Claude Code DevPod",
+    "image": "nvidia/cuda:12.8.0-devel-ubuntu22.04",
+    "runArgs": ["--gpus", "all"],
+    "remoteUser": "vscode",
+
+    "containerEnv": {
+        "UV_PYTHON": ">=3.12"
+    },
+
+    "features": {
+        "ghcr.io/devcontainers/features/common-utils:2": {
+            "installZsh": false,
+            "installOhMyZsh": false,
+            "installOhMyZshConfig": false,
+            "username": "vscode",
+            "userUid": "1000",
+            "userGid": "1000"
+        },
+        "ghcr.io/devcontainers/features/node:1": {},
+        "ghcr.io/devcontainers/features/python:1": {},
+        "ghcr.io/devcontainers/features/rust:1": {},
+        "ghcr.io/devcontainers/features/git:1": {},
+        "ghcr.io/devcontainers/features/github-cli:1": {}
+    },
+
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "rust-lang.rust-analyzer",
+                "ms-python.python",
+                "charliermarsh.ruff"
+            ]
+        }
+    },
+
+    "postCreateCommand": "bash .devcontainer/setup.sh"
+}
