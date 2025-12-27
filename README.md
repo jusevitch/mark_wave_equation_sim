@@ -1,4 +1,4 @@
-# Claude Code DevPod Template
+# Claude Code DevPod Template (GPU Support)
 
 Run Claude Code safely inside Docker containers using DevPod.
 
@@ -11,8 +11,9 @@ Claude Code is powerful. Running it unconstrained on your computer is risky. Thi
 (Skip if you've done this before)
 
 1. [Install Docker](https://docs.docker.com/engine/install/)
-2. [Install DevPod CLI](https://devpod.sh/docs/getting-started/install#install-devpod-cli)
-3. Add Docker to DevPod as the default provider:
+2. [Install the NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+3. [Install DevPod CLI](https://devpod.sh/docs/getting-started/install#install-devpod-cli)
+4. Add Docker to DevPod as the default provider:
 ```bash
 devpod provider add docker
 devpod provider use docker
@@ -32,6 +33,7 @@ That's it! Claude Code is automatically installed and ready to use.
 - **Rust** - Full Rust toolchain with rust-analyzer
 - **Node.js** - JavaScript runtime
 - **Git** + **GitHub CLI** - Version control
+- **CUDA 12.8** - GPU support for JAX / Pytorch / etc.
 
 ## Using Claude Code
 
