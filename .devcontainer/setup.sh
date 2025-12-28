@@ -12,6 +12,18 @@ if [ -s "$NVM_DIR/nvm.sh" ]; then
     . "$NVM_DIR/nvm.sh"
 fi
 
+# Configure npm to use a user-local directory for global packages
+# This avoids permission issues with the system nvm installation
+NPM_GLOBAL_DIR="$HOME/.npm-global"
+mkdir -p "$NPM_GLOBAL_DIR"
+npm config set prefix "$NPM_GLOBAL_DIR"
+export PATH="$NPM_GLOBAL_DIR/bin:$PATH"
+
+# Persist the PATH for future shell sessions
+if ! grep -q 'npm-global' "$HOME/.bashrc" 2>/dev/null; then
+    echo 'export PATH="$HOME/.npm-global/bin:$PATH"' >> "$HOME/.bashrc"
+fi
+
 # Install uv (fast Python package manager)
 if ! command -v uv &> /dev/null; then
     echo "Installing uv..."
