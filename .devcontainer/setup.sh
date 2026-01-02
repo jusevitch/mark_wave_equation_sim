@@ -51,7 +51,28 @@ else
     echo "Claude Code is already installed"
 fi
 
+# Install Codex CLI
+if ! command -v codex &> /dev/null; then
+    echo "Installing Codex CLI..."
+    npm install -g @openai/codex --loglevel=error --no-fund --no-audit
+    echo "Codex CLI installed successfully"
+else
+    echo "Codex CLI is already installed"
+fi
+
+# Copy shell aliases if available
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/.bash_aliases" ]; then
+    echo "Setting up shell aliases..."
+    cp "$SCRIPT_DIR/.bash_aliases" "$HOME/.bash_aliases"
+    # Source aliases in .bashrc if not already configured
+    if ! grep -q '\.bash_aliases' "$HOME/.bashrc" 2>/dev/null; then
+        echo 'if [ -f ~/.bash_aliases ]; then . ~/.bash_aliases; fi' >> "$HOME/.bashrc"
+    fi
+    echo "Shell aliases configured"
+fi
+
 echo "=== Setup Complete ==="
 echo ""
-echo "To start Claude Code, run: claude"
-echo "To start with all permissions (recommended in containers): claude --dangerously-skip-permissions"
+echo "To start Claude Code, run: claude --dangerously-skip-permissions"
+echo "To start Codex CLI, run: codex --full-auto"
