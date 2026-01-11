@@ -3,6 +3,7 @@
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=16
 #SBATCH --cpus-per-task=1
+#SBATCH --mem-per-cpu=2G
 #SBATCH --time=01:00:00
 #SBATCH --output=wave_sim_%j.out
 #SBATCH --error=wave_sim_%j.err

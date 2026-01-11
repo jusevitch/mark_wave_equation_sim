@@ -14,6 +14,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.colors import Normalize
+from matplotlib import cm
+from mpl_toolkits.mplot3d import Axes3D
 from pathlib import Path
 
 
@@ -92,8 +94,9 @@ def create_animation(
     vabs = max(abs(vmin), abs(vmax))
     vmin, vmax = -vabs, vabs
 
-    # Set up the figure
-    fig, ax = plt.subplots(figsize=(10, 8))
+    # Set up the figure with dimensions divisible by 2 (required for h264)
+    # 8x8 inches at default dpi gives clean pixel dimensions
+    fig, ax = plt.subplots(figsize=(8, 8))
 
     # Initial plot
     im = ax.imshow(
@@ -143,17 +146,214 @@ def create_animation(
         ani.save(output_path, writer='pillow', fps=fps, dpi=dpi)
     elif output_ext == '.mp4':
         print(f"Saving MP4 to {output_path}...")
-        writer = animation.FFMpegWriter(fps=fps, bitrate=5000)
-        ani.save(output_path, writer=writer, dpi=dpi)
+        saved = False
+
+        # Try different codec configurations in order of preference
+        codec_configs = [
+            {'codec': 'libx264', 'extra_args': ['-pix_fmt', 'yuv420p']},
+            {'codec': 'mpeg4', 'extra_args': []},
+            {'codec': 'h264', 'extra_args': ['-pix_fmt', 'yuv420p']},
+            {'codec': None, 'extra_args': []},  # Let FFmpeg choose
+        ]
+
+        for config in codec_configs:
+            try:
+                writer = animation.FFMpegWriter(
+                    fps=fps,
+                    codec=config['codec'],
+                    extra_args=config['extra_args'] if config['extra_args'] else None
+                )
+                ani.save(output_path, writer=writer, dpi=dpi)
+                saved = True
+                break
+            except Exception as e:
+                codec_name = config['codec'] or 'default'
+                print(f"Codec {codec_name} failed: {e}")
+                continue
+
+        if not saved:
+            print("All FFmpeg codecs failed. Falling back to GIF format...")
+            output_path = str(Path(output_path).with_suffix('.gif'))
+            ani.save(output_path, writer='pillow', fps=fps, dpi=dpi)
     else:
-        # Default to MP4
-        output_path = str(Path(output_path).with_suffix('.mp4'))
-        print(f"Saving MP4 to {output_path}...")
-        writer = animation.FFMpegWriter(fps=fps, bitrate=5000)
-        ani.save(output_path, writer=writer, dpi=dpi)
+        # Default to GIF (more compatible)
+        output_path = str(Path(output_path).with_suffix('.gif'))
+        print(f"Saving GIF to {output_path}...")
+        ani.save(output_path, writer='pillow', fps=fps, dpi=dpi)
 
     plt.close()
     print(f"Animation saved to {output_path}")
+
+
+def create_3d_animation(
+    frames: list[np.ndarray],
+    times: list[float],
+    output_path: str,
+    fps: int = 30,
+    dpi: int = 100,
+    colormap: str = 'viridis',
+    title: str = 'Dampened Wave Equation - 3D Drumhead',
+    downsample: int = 4,
+    elevation: float = 30,
+    azimuth: float = 45,
+    rotate: bool = False
+) -> None:
+    """
+    Create a 3D surface animation of the wave simulation.
+
+    Args:
+        frames: List of 2D numpy arrays (wave data for each time step)
+        times: List of simulation times
+        output_path: Output file path (.mp4 or .gif)
+        fps: Frames per second
+        dpi: Resolution (dots per inch)
+        colormap: Matplotlib colormap name
+        title: Title for the animation
+        downsample: Factor to reduce grid resolution (for performance)
+        elevation: Initial viewing elevation angle
+        azimuth: Initial viewing azimuth angle
+        rotate: If True, slowly rotate the view during animation
+    """
+    # Downsample frames for performance
+    ds_frames = [f[::downsample, ::downsample] for f in frames]
+    ny, nx = ds_frames[0].shape
+
+    # Create meshgrid for surface plot
+    x = np.linspace(0, 1, nx)
+    y = np.linspace(0, 1, ny)
+    X, Y = np.meshgrid(x, y)
+
+    # Determine global min/max for consistent color and z scaling
+    all_data = np.concatenate([f.flatten() for f in ds_frames])
+    vmin, vmax = np.percentile(all_data, [1, 99])
+    vabs = max(abs(vmin), abs(vmax))
+    zmin, zmax = -vabs * 1.2, vabs * 1.2  # Add some headroom
+
+    # Set up the figure
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection='3d')
+
+    # Get colormap
+    cmap = plt.colormaps.get_cmap(colormap)
+    norm = Normalize(vmin=-vabs, vmax=vabs)
+
+    # Initial surface plot
+    surf = ax.plot_surface(
+        X, Y, ds_frames[0],
+        cmap=cmap,
+        norm=norm,
+        linewidth=0,
+        antialiased=True,
+        rcount=ny,
+        ccount=nx
+    )
+
+    # Set labels and title
+    ax.set_xlabel('X', fontsize=12)
+    ax.set_ylabel('Y', fontsize=12)
+    ax.set_zlabel('Displacement', fontsize=12)
+    ax.set_title(f'{title}\nt = {times[0]:.4f} s', fontsize=14)
+
+    # Set fixed axis limits
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.set_zlim(zmin, zmax)
+
+    # Set initial view angle
+    ax.view_init(elev=elevation, azim=azimuth)
+
+    # Add colorbar
+    fig.colorbar(surf, ax=ax, shrink=0.5, aspect=10, label='Displacement')
+
+    plt.tight_layout()
+
+    def update(frame_num: int):
+        """Update function for animation."""
+        ax.clear()
+
+        # Replot surface
+        surf = ax.plot_surface(
+            X, Y, ds_frames[frame_num],
+            cmap=cmap,
+            norm=norm,
+            linewidth=0,
+            antialiased=True,
+            rcount=ny,
+            ccount=nx
+        )
+
+        # Reset labels and limits
+        ax.set_xlabel('X', fontsize=12)
+        ax.set_ylabel('Y', fontsize=12)
+        ax.set_zlabel('Displacement', fontsize=12)
+        ax.set_title(f'{title}\nt = {times[frame_num]:.4f} s', fontsize=14)
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+        ax.set_zlim(zmin, zmax)
+
+        # Rotate view if enabled
+        if rotate:
+            ax.view_init(elev=elevation, azim=azimuth + frame_num * 0.5)
+        else:
+            ax.view_init(elev=elevation, azim=azimuth)
+
+        return [surf]
+
+    # Create animation
+    print(f"Creating 3D animation with {len(ds_frames)} frames at {fps} fps...")
+    print(f"Grid downsampled from {frames[0].shape} to {ds_frames[0].shape}")
+    ani = animation.FuncAnimation(
+        fig,
+        update,
+        frames=len(ds_frames),
+        interval=1000 / fps,
+        blit=False  # 3D plots don't support blitting
+    )
+
+    # Save animation
+    output_ext = Path(output_path).suffix.lower()
+
+    if output_ext == '.gif':
+        print(f"Saving GIF to {output_path}...")
+        ani.save(output_path, writer='pillow', fps=fps, dpi=dpi)
+    elif output_ext == '.mp4':
+        print(f"Saving MP4 to {output_path}...")
+        saved = False
+
+        # Try different codec configurations in order of preference
+        codec_configs = [
+            {'codec': 'libx264', 'extra_args': ['-pix_fmt', 'yuv420p']},
+            {'codec': 'mpeg4', 'extra_args': []},
+            {'codec': 'h264', 'extra_args': ['-pix_fmt', 'yuv420p']},
+            {'codec': None, 'extra_args': []},  # Let FFmpeg choose
+        ]
+
+        for config in codec_configs:
+            try:
+                writer = animation.FFMpegWriter(
+                    fps=fps,
+                    codec=config['codec'],
+                    extra_args=config['extra_args'] if config['extra_args'] else None
+                )
+                ani.save(output_path, writer=writer, dpi=dpi)
+                saved = True
+                break
+            except Exception as e:
+                codec_name = config['codec'] or 'default'
+                print(f"Codec {codec_name} failed: {e}")
+                continue
+
+        if not saved:
+            print("All FFmpeg codecs failed. Falling back to GIF format...")
+            output_path = str(Path(output_path).with_suffix('.gif'))
+            ani.save(output_path, writer='pillow', fps=fps, dpi=dpi)
+    else:
+        output_path = str(Path(output_path).with_suffix('.gif'))
+        print(f"Saving GIF to {output_path}...")
+        ani.save(output_path, writer='pillow', fps=fps, dpi=dpi)
+
+    plt.close()
+    print(f"3D animation saved to {output_path}")
 
 
 def create_snapshot_grid(
@@ -259,6 +459,35 @@ def main():
         default=1,
         help='Use every Nth frame (default: 1, use all)'
     )
+    parser.add_argument(
+        '--3d',
+        dest='three_d',
+        action='store_true',
+        help='Create 3D surface animation instead of 2D heatmap'
+    )
+    parser.add_argument(
+        '--downsample',
+        type=int,
+        default=4,
+        help='Downsample factor for 3D mode (default: 4, use 1 for full resolution)'
+    )
+    parser.add_argument(
+        '--elevation',
+        type=float,
+        default=30,
+        help='3D view elevation angle in degrees (default: 30)'
+    )
+    parser.add_argument(
+        '--azimuth',
+        type=float,
+        default=45,
+        help='3D view azimuth angle in degrees (default: 45)'
+    )
+    parser.add_argument(
+        '--rotate',
+        action='store_true',
+        help='Slowly rotate the 3D view during animation'
+    )
 
     args = parser.parse_args()
 
@@ -271,15 +500,29 @@ def main():
         times = times[::args.skip]
         print(f"Using every {args.skip}th frame: {len(frames)} frames total")
 
-    # Create animation
-    create_animation(
-        frames,
-        times,
-        args.output,
-        fps=args.fps,
-        dpi=args.dpi,
-        colormap=args.colormap
-    )
+    # Create animation (3D or 2D)
+    if args.three_d:
+        create_3d_animation(
+            frames,
+            times,
+            args.output,
+            fps=args.fps,
+            dpi=args.dpi,
+            colormap=args.colormap,
+            downsample=args.downsample,
+            elevation=args.elevation,
+            azimuth=args.azimuth,
+            rotate=args.rotate
+        )
+    else:
+        create_animation(
+            frames,
+            times,
+            args.output,
+            fps=args.fps,
+            dpi=args.dpi,
+            colormap=args.colormap
+        )
 
     # Create snapshots if requested
     if args.snapshots:
